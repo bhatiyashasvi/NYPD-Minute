@@ -1,0 +1,636 @@
+---
+title: "Call_for_service_DataAnalysis"
+author: "Yashasvi Bhati"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. Importing the required libraries
+```{r, include=FALSE}
+
+library(httr)
+library(jsonlite)
+library(dplyr)
+library(tidyverse)
+library(shiny)
+library(ggplot2)
+library(gganimate)
+library(plotly)
+
+
+```
+
+
+# 2. Reading the dataset
+```{r, include=FALSE}
+
+bx_911 <- read.csv('01Bronx_NYPD911.csv')
+bk_911 <- read.csv('02Brooklyn_NYPD911.csv')
+mn_911 <- read.csv('03Manhattan_NYPD911.csv')
+qn_911 <- read.csv('04Queens_NYPD911.csv')
+si_911 <- read.csv('05StatenIsland_NYPD911.csv')
+
+```
+
+
+# 3. Data Exploration 
+### The dimensions and structure of the datasets 
+```{r}
+
+#aggregating the datasets to avoid repeated work 
+nyc <- list(
+  bx_911 = bx_911,
+  bk_911 = bk_911,
+  mn_911 = mn_911,
+  qn_911 = qn_911,
+  si_911 = si_911
+)
+
+
+#creating function for printing the dimensions of each dataframe
+dim_fun <- function(nyc) {
+  list(
+    Dimensions = dim(nyc)
+  )
+}
+
+# Apply the function to each element in the list and print the results
+lapply(nyc, dim_fun)
+
+```
+
+### Printing the column names
+```{r}
+
+#column names are same for all the datasets
+#creating function for printing the dimensions of each dataframe
+
+colnames_fun <- function(nyc) {
+  list(
+    Column_Names = colnames(nyc)
+  )
+}
+
+lapply(nyc, colnames_fun)
+
+```
+
+
+
+
+
+# 4. Data Cleaning
+### Dealing with null values
+```{r}
+
+#function to calculate the number of null values per dataset
+count_nulls <- function(nyc) {
+  sapply(nyc, function(x) sum(is.na(x)))
+}
+
+#applying the function to each dataset and combine results
+null_counts <- sapply(nyc, count_nulls)
+
+#printing the null counts for each dataset
+print(null_counts)
+
+```
+
+### Removing extra columns 
+```{r}
+
+#rm(nyc_clean)
+
+#notice that columns names are not in the proper format and we may also not need this data
+nyc_clean <- lapply(nyc, function(x) x[, !colnames(x) %in% c('Zip.Codes', 'City.Council.Districts')])
+
+```
+
+
+### Dealing with duplicated values 
+```{r}
+
+#glimpse(nyc_clean)
+duplicates <- duplicated(nyc_clean)
+
+#counting the number of duplicated rows
+num_duplicates <- sum(duplicates)
+
+#printing the number of duplicated rows
+print(num_duplicates)
+
+```
+
+### Dealing with timestamps
+```{r}
+
+#str(bronx_911)
+#view(bronx_911)
+#rm(process_data)
+
+#passing the entire list of dataframes did not work as the lists within it would become function themselves
+#thus passing each dataset individually and then later applying to the the main 'nyc_clean'
+
+#for bx_911
+process_data <- function(bx_911) {
+  bx_911 <- bx_911 %>%
+    mutate(
+      ADD_TS = as.POSIXct(ADD_TS, format = "%m/%d/%Y %H:%M", tz = "UTC"),
+      DISP_TS = as.POSIXct(DISP_TS, format = "%m/%d/%Y %H:%M", tz = "UTC"),
+      ARRIVD_TS = as.POSIXct(ARRIVD_TS, format = "%m/%d/%Y %H:%M", tz = "UTC"),
+      CLOSNG_TS = as.POSIXct(CLOSNG_TS, format = "%m/%d/%Y %H:%M", tz = "UTC")
+    )
+  
+  return(bx_911)
+}
+
+nyc_clean$bx_911 <- process_data(nyc_clean$bx_911)
+
+#for bk_911
+process_data <- function(bk_911) {
+  bk_911 <- bk_911 %>%
+    mutate(
+      ADD_TS = as.POSIXct(ADD_TS, format = "%m/%d/%Y %H:%M", tz = "UTC"),
+      DISP_TS = as.POSIXct(DISP_TS, format = "%m/%d/%Y %H:%M", tz = "UTC"),
+      ARRIVD_TS = as.POSIXct(ARRIVD_TS, format = "%m/%d/%Y %H:%M", tz = "UTC"),
+      CLOSNG_TS = as.POSIXct(CLOSNG_TS, format = "%m/%d/%Y %H:%M", tz = "UTC")
+    )
+  
+  return(bk_911)
+}
+
+nyc_clean$bk_911 <- process_data(nyc_clean$bk_911)
+
+#for mn_911
+process_data <- function(mn_911) {
+  mn_911 <- mn_911 %>%
+    mutate(
+      ADD_TS = as.POSIXct(ADD_TS, format = "%m/%d/%Y %H:%M", tz = "UTC"),
+      DISP_TS = as.POSIXct(DISP_TS, format = "%m/%d/%Y %H:%M", tz = "UTC"),
+      ARRIVD_TS = as.POSIXct(ARRIVD_TS, format = "%m/%d/%Y %H:%M", tz = "UTC"),
+      CLOSNG_TS = as.POSIXct(CLOSNG_TS, format = "%m/%d/%Y %H:%M", tz = "UTC")
+    )
+  
+  return(mn_911)
+}
+
+nyc_clean$mn_911 <- process_data(nyc_clean$mn_911)
+
+#for qn_911
+process_data <- function(qn_911) {
+  qn_911 <- qn_911 %>%
+    mutate(
+      ADD_TS = as.POSIXct(ADD_TS, format = "%m/%d/%Y %H:%M", tz = "UTC"),
+      DISP_TS = as.POSIXct(DISP_TS, format = "%m/%d/%Y %H:%M", tz = "UTC"),
+      ARRIVD_TS = as.POSIXct(ARRIVD_TS, format = "%m/%d/%Y %H:%M", tz = "UTC"),
+      CLOSNG_TS = as.POSIXct(CLOSNG_TS, format = "%m/%d/%Y %H:%M", tz = "UTC")
+    )
+  
+  return(qn_911)
+}
+
+nyc_clean$qn_911 <- process_data(nyc_clean$qn_911)
+
+#for si_911
+process_data <- function(si_911) {
+  si_911 <- si_911 %>%
+    mutate(
+      ADD_TS = as.POSIXct(ADD_TS, format = "%m/%d/%Y %H:%M", tz = "UTC"),
+      DISP_TS = as.POSIXct(DISP_TS, format = "%m/%d/%Y %H:%M", tz = "UTC"),
+      ARRIVD_TS = as.POSIXct(ARRIVD_TS, format = "%m/%d/%Y %H:%M", tz = "UTC"),
+      CLOSNG_TS = as.POSIXct(CLOSNG_TS, format = "%m/%d/%Y %H:%M", tz = "UTC")
+    )
+  
+  return(si_911)
+}
+
+nyc_clean$si_911 <- process_data(nyc_clean$si_911) 
+
+```
+
+
+
+### Dealing with individual date and time columns and merging into one 
+```{r}
+
+#defining a function to create a new datetime column from date and time columns
+create_datetime_column_list <- function(nyc_clean) {
+  nyc_clean <- lapply(nyc_clean, function(df) {  
+    df$INCIDENT_DATETIME <- as.POSIXct(paste(df$INCIDENT_DATE, df$INCIDENT_TIME),
+                                       format = "%m/%d/%Y %H:%M:%S", tz = "UTC")
+    return(df)
+  })
+  return(nyc_clean)
+}
+
+# Apply the function to the list of dataframes
+nyc_clean <- create_datetime_column_list(nyc_clean)
+
+
+#updating the global environment 
+#list2env(nyc_clean, envir = .GlobalEnv)
+
+```
+
+### Dealing with the column formats for 'INCIDENT_DATE'
+```{r}
+
+convert_to_date <- function(df) {
+  if ("INCIDENT_DATE" %in% names(df) && is.character(df$INCIDENT_DATE)) {
+    df$INCIDENT_DATE <- as.Date(df$INCIDENT_DATE, format = "%m/%d/%Y")
+  }
+  return(df)
+}
+
+nyc_clean <- lapply(nyc_clean, convert_to_date)
+#list2env(nyc_clean, envir = .GlobalEnv)
+
+
+```
+
+
+
+### Creating a 'Month' column to extract & study any monthly trends
+```{r}
+
+#defining the function that takes month from the 'INCIDENT_DATE' column
+add_month_column <- function(df) {
+    #ensuring if the data is in correct format
+    if (!inherits(df$INCIDENT_DATE, "Date")) {
+    df$INCIDENT_DATE <- as.Date(df$INCIDENT_DATE)  # 'format' argument is not needed if the date is in 'YYYY-MM-DD' format
+  }
+  
+  #extracting the month and create a new column 'MONTH'
+  df$MONTH <- format(df$INCIDENT_DATE, "%m")  # Formats the date as "month number"
+  
+  return(df)
+}
+
+#applying the function
+nyc_clean <- lapply(nyc_clean, add_month_column)
+list2env(nyc_clean, envir = .GlobalEnv)
+
+
+```
+
+
+### Calculate monthly counts per borough 
+```{r}
+#function to count number of reported calls
+calculate_monthly_counts <- function(df) {
+  monthly_counts <- df %>%
+    group_by(MONTH) %>%
+    summarise(COUNT = n(), .groups = 'drop')  # count the number of rows for each month
+  return(monthly_counts)
+}
+
+nyc_clean_counts <- lapply(nyc_clean, calculate_monthly_counts)
+list2env(nyc_clean, envir = .GlobalEnv)
+
+```
+
+#Basic Visualisations 
+### Combine all the dataframes. At this point, all import and cleaning of data is performed on every borough dataframe. We can concatenate the dataframes 
+
+```{r}
+#for visualizations, we are concatenating all dataframes into 'all_data'
+all_data <- bind_rows(nyc_clean$bx_911, nyc_clean$bk_911, nyc_clean$mn_911, nyc_clean$qn_911, nyc_clean$si_911)
+
+```
+
+
+```{r}
+#calculating the aggregate per borough
+borough_summary <- all_data %>%
+  group_by(BORO_NM) %>%
+  summarise(Total_Calls = n())
+
+# Create an interactive Plotly graph
+fig <- plot_ly(borough_summary, x = ~BORO_NM, y = ~Total_Calls, type = 'bar', name = 'Total Calls') %>%
+  layout(title = 'Aggregated Reported Calls per Borough',
+         xaxis = list(title = 'Borough'),
+         yaxis = list(title = 'Total Number of Calls'))
+
+# Show the plot
+fig
+
+```
+
+
+### Timeline of aggregated reported calls per month borough-wise
+
+```{r}
+
+#rm(calculate_response_time, nyc_response_times, all_response_times, monthly_response_times, animate_response_times)
+
+all_data$INCIDENT_DATE <- as.Date(all_data$INCIDENT_DATE)
+all_data$YearMonth <- format(all_data$INCIDENT_DATE, "%Y-%m")
+
+monthly_calls <- all_data %>%
+  group_by(BORO_NM, YearMonth) %>%
+  summarise(Total_Calls = n(), .groups = 'drop')
+
+# Create the ggplot
+p <- ggplot(all_data, aes(x = Longitude, y = Latitude, color = BORO_NM)) +
+  geom_point(alpha = 0.5, show.legend = FALSE) + 
+  labs(title = '911 Calls by Location: {closest_frame}', x = 'Longitude', y = 'Latitude') +
+  theme_minimal()
+
+# Animate the plot
+anim <- p + transition_time(INCIDENT_DATE) +
+  labs(subtitle = 'Date: {frame_time}') +
+  ease_aes('linear')
+
+# Render the animation
+animate(anim, duration = 20, fps = 10, width = 800, height = 600, renderer = gifski_renderer())
+
+# Save the animation
+anim_save("911_calls_animation.gif", anim)
+
+```
+
+
+### Plotting a line intensive graph to study the patterns by month 
+```{r}
+
+monthly_borough_counts <- all_data %>%
+  group_by(BORO_NM, MONTH) %>%
+  summarise(COUNT = n(), .groups = 'drop')  # Count the number of records per group
+
+# Display the result to check
+print(monthly_borough_counts)
+
+library(RColorBrewer)
+
+monthly_line_graph <- function(df) {
+  ggplot(df, aes(x = as.factor(MONTH), y = COUNT, group = BORO_NM, color = BORO_NM)) +
+    geom_line(size = 1) +  # Draw lines
+    geom_point(size = 3) +  # Add points
+    scale_color_manual(values = c("red", "blue", "green", "purple", "orange")) +  # Custom colors for each borough
+    labs(title = "Monthly Reported Calls per Borough",
+         subtitle = "Data aggregated by month across all boroughs",
+         x = "Month",
+         y = "Count of Calls",
+         color = "Borough") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 360, hjust = 1))  # Improve label readability
+}
+
+# Apply the function to the aggregated data
+monthly_line_graph(monthly_borough_counts)
+
+
+```
+
+
+
+```{r}
+#Part 2 of Data exploration
+#noticed that the MONTH column is a chr and not integer or date
+#converting it into a numerical value 
+all_data$MONTH <-  as.integer(all_data$MONTH)
+
+class(all_data$MONTH)
+
+colnames(all_data)
+
+#finding all types of unique emergency types
+unique_val_incident_type <- unique(all_data$TYP_DESC)
+print(unique_val_incident_type)
+#since there are a large number of types (494) recorded bases on the radiocode, it would be better if we stick to analyzing the flag types as it is a categorized column
+
+#finding the types of flag of Crime in Progress 
+unique_val_flag_type <- unique(all_data$CIP_JOBS)
+print(unique_val_flag_type)
+
+#since CIP_JOBS represents the flag type which NYPD uses to approximate the severity of the situation, let us rename the column_name to something that we understand 
+all_data <- all_data %>%
+  rename(FLAG_TYPE = CIP_JOBS)
+
+```
+
+
+### Total % of each flag_type recorded across all boroughs 
+```{r}
+
+#preparing the data
+#counting the total number of rows under each flag_type 
+flag_type_counts <- table(all_data$FLAG_TYPE)
+
+#coverting to a dataframe for adding a % column and easy plotting of data 
+flag_type_df <- as.data.frame(flag_type_counts)
+names(flag_type_df) <- c("FLAG_TYPE", "Count")
+
+flag_type_df$Percentage <- (flag_type_df$Count / sum(flag_type_df$Count)) * 100
+
+
+bar_chart_monthly <- ggplot(flag_type_df, aes(x = FLAG_TYPE, y = Percentage, fill = FLAG_TYPE)) +
+  geom_col(show.legend = FALSE) + # Use geom_col to create bars
+  geom_text(aes(label = sprintf("%.2f%%", Percentage)), vjust = -0.5) + # Add text labels above bars
+  labs(title = "Distribution of Flags", x = "Flag Type", y = "Percentage") +
+  theme_minimal() + # Clean minimal theme
+  scale_fill_brewer(palette = "Set3") # Colorful discrete color palette
+
+# Display the chart
+print(bar_chart_monthly)
+
+```
+
+
+### Type of 911 calls per borough
+```{r}
+
+borough_flags <- all_data %>%
+  group_by(BORO_NM, FLAG_TYPE) %>%
+  summarise(Count = n(), .groups = 'drop') %>%
+  mutate(Total = sum(Count, na.rm = TRUE), 
+         Percentage = (Count / Total) * 100)
+
+# Viewing the prepared data
+print(borough_flags)
+
+
+stacked_chart <- ggplot(borough_flags, aes(x = BORO_NM, y = Percentage, fill = FLAG_TYPE)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Percentage of Flag Types per Borough (Stacked)", x = "Borough", y = "Percentage") +
+  scale_fill_brewer(palette = "Pastel1") +
+  theme_minimal()
+
+# Display the stacked bar chart
+print(stacked_chart)
+
+
+```
+
+
+
+```{r}
+
+grouped_chart <- ggplot(borough_flags, aes(x = BORO_NM, y = Percentage, fill = FLAG_TYPE)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  labs(title = "Percentage of Flag Types per Borough (Grouped)", x = "Borough", y = "Percentage") +
+  scale_fill_brewer(palette = "Pastel2") +
+  theme_minimal()
+
+# Display the grouped bar chart
+print(grouped_chart)
+
+```
+
+
+```{r}
+
+#glimpse(all_data)
+
+
+# Assuming 'all_data' has longitude, latitude, and your newly renamed 'FLAG_TYPE'
+ggplot(all_data, aes(x = Longitude, y = Latitude, color = FLAG_TYPE)) +
+  geom_point(alpha = 0.6, size = 1.5) +
+  facet_wrap(~ BORO_NM) +  # Facets by borough to separate plots per borough
+  labs(title = "Distribution of Flag Types by Geographic Location", x = "Longitude", y = "Latitude") +
+  scale_color_brewer(palette = "Set2") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+```
+
+
+
+### Analysing the incidents on date time basis
+```{r}
+
+#str(all_data)
+
+#categorising incidents as day or night
+all_data <- all_data %>%
+  mutate(
+    Hour = hour(INCIDENT_DATETIME),
+    Time_of_Day = if_else(Hour >= 6 & Hour < 18, "Daytime", "Nighttime"),
+    Date = as.Date(INCIDENT_DATETIME)
+  )
+
+
+#counting the number of incidents by time of the day and borough 
+incident_counts <- all_data %>%
+  group_by(BORO_NM, Time_of_Day) %>%
+  summarise(Count = n(), .groups = 'drop')
+
+
+#calculating the daytime to nighttime ratio
+incident_counts_wide <- incident_counts %>%
+  pivot_wider(names_from = Time_of_Day, values_from = Count, values_fill = list(Count = 0))
+
+incident_ratios <- incident_counts_wide %>%
+  mutate(Daytime_to_Nighttime_Ratio = Daytime / Nighttime)
+
+print(incident_ratios)
+
+
+#visualizing the findings
+ggplot(incident_ratios, aes(x = BORO_NM, y = Daytime_to_Nighttime_Ratio, fill = BORO_NM)) +
+  geom_col() +
+  labs(title = "Daytime to Nighttime Incident Ratios by Borough",
+       x = "Borough",
+       y = "Ratio of Daytime to Nighttime Incidents") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+
+
+```
+
+
+```{r}
+p <- plot_ly(incident_counts, labels = ~BORO_NM, values = ~Count, type = 'pie', textinfo = 'label+percent',
+             insidetextorientation = 'radial', marker = list(colors = c('#FF5733', '#33C1FF')))
+p <- p %>% layout(title = 'Proportional Distribution of Incidents by Time of Day')
+p
+```
+
+
+
+```{r}
+
+
+#calculating time differences
+all_data <- all_data %>%
+  mutate(
+    Response_Time = difftime(ADD_TS, DISP_TS, units = "mins"),
+    Closing_Time = difftime(CLOSNG_TS, ARRIVD_TS, units = "mins")
+  )
+
+
+#calculating mean times 
+mean_metrics <- all_data %>%
+  summarise(
+    Mean_Response_Time = mean(Response_Time, na.rm = TRUE),
+    Mean_Closing_Time = mean(Closing_Time, na.rm = TRUE)
+  ) 
+
+print(mean_metrics)
+
+
+```
+
+
+
+```{r}
+
+#plotting the histogram 
+#mean response time
+ggplot(all_data, aes(x = Response_Time)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black") +
+  labs(title = "Histogram of Response Times",
+       x = "Response Time (minutes)",
+       y = "Frequency")
+
+
+```
+
+
+
+```{r}
+
+
+#mean closing time 
+ggplot(all_data, aes(x = Closing_Time)) +
+  geom_histogram(binwidth = 1, fill = "red", color = "black") +
+  labs(title = "Histogram of Closing Times",
+       x = "Closing Time (minutes)",
+       y = "Frequency")
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Adjust the time zone if necessary (e.g., changing to Eastern Time)
+df$ADD_TS <- with_tz(df$ADD_TS, tzone = "America/New_York")
+Analysis Based on DateTime Information
+With datetime columns properly set up, you can perform various time-based analyses. For example:
+
+Time Difference Calculations: Calculate the duration between different timestamps.
+r
+Copy code
+# Calculate duration between dispatch and arrival in minutes
+df$Duration_DISP_ARRIVD <- difftime(df$ARRIVD_TS, df$DISP_TS, units = "mins")
+Aggregations Over Time: Summarize data by time periods (e.g., daily, monthly).
+
+

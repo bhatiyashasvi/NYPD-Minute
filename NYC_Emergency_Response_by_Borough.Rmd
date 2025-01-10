@@ -1,0 +1,247 @@
+---
+title: "NYC Emergency Response by Borough"
+author: "Noor Mahmud, Alba, Abdullah, Yash, Moksha"
+date: "2024-05-16"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## Introduction
+
+Here we are going to do some analyses and visualizations using the dataset called, "NYPD Calls for Service". It is one of the main datasets we used for our project. The main goal of this analysis to see if there is any correlation between the response time and number of incidents reported for each borough. We will also try to see if there is a correlation between response time and the type of incident. 
+
+## Data Acquisition
+
+The dataset, "NYPD Calls for Service (Historic)" is a very large dataset, containing over 40 million rows of data. So, we decided to only pull the data from the year 2023. Even that ended up being a large dataset with around 8 million rows of data. Here is a link to NYC Open Data: https://data.cityofnewyork.us/Public-Safety/NYPD-Calls-for-Service-Historic-/d6zx-ckhd/about_data.
+
+Given the large size of the data, we decided to ingest the data via API, where we would also be able to add additional queries to get the relevant data. We decided to ingest the data using Python because the documentation for R API seemed incomplete. The link to the Python code is included in the **Appendix** section. 
+
+Once the data was acquired, we saved the data into one CSV file. Then we read the file into RStudio for the analysis and visualization.
+
+## Analysis
+
+First, we are going to read the data from the CSV file and confirm we have all the columns we need and the data is clean overall.
+
+### Reading the data files and ensuring the the columns of interests are not null.
+
+```{r}
+library(dplyr)
+library(lubridate)
+library(ggplot2)
+
+
+nypd_data <- read.csv("C:/Users/Owner/OneDrive - The City University of New York/BaruchMS/SoftwareTools/nype_911_2023_data.csv")
+
+
+# Check for null values in 'add_ts' column
+null_add_ts <- sum(is.na(nypd_data$add_ts))
+
+# Check for null values in 'arrivd_ts' column
+null_arrivd_ts <- sum(is.na(nypd_data$arrivd_ts))
+
+# Print the results
+cat("Number of null values in 'add_ts' column:", null_add_ts, "\n")
+cat("Number of null values in 'arrivd_ts' column:", null_arrivd_ts, "\n")
+
+head(nypd_data)
+```
+
+From the output, the data seems good.
+
+### Adding a 'response_time' column which calculates the difference between 'add_ts' and 'arrivd_ts', which are the time at which the request was entered into the system and the time at which the police arrived, respectively.
+
+```{r}
+
+# create 'response_time' column:
+# Convert 'add_ts' and 'arrivd_ts' columns to datetime objects
+nypd_data$add_ts <- ymd_hms(nypd_data$add_ts)
+nypd_data$arrivd_ts <- ymd_hms(nypd_data$arrivd_ts)
+
+# Create the 'response_time' column
+nypd_data$response_time <- nypd_data$arrivd_ts - nypd_data$add_ts
+
+
+head(nypd_data)
+
+```
+
+
+## Converting the response to minutes and then checking to make sure the overall average response time is not close to 0.
+
+```{r}
+# Convert the 'response_time' column to numeric (minutes)
+nypd_data$response_time_minutes <- as.numeric(nypd_data$response_time, units = "mins")
+
+# Calculate the average of 'response_time' in minutes
+avg_resp_tmin <- mean(nypd_data$response_time_minutes, na.rm = TRUE)
+
+# Print the average response time in minutes, just making sure it's not close to zero
+cat("Average response time (in minutes):", avg_resp_tmin, "\n")
+```
+
+
+### Aggregating the dataset by grouping the data by borough and 'CIP Jobs', which stands for 'crime in progress'. This should give the average response time for each category of service requests for each borough. Then we are going to plot the results.
+
+```{r}
+
+# Create a bar plot
+bar_plot <- nypd_data %>%
+  filter(!is.na(boro_nm) & boro_nm != "(null)") %>%
+  group_by(boro_nm, cip_jobs) %>%
+  summarize(average_response_time_minutes = mean(response_time_minutes, na.rm = TRUE)) %>%
+  ggplot(aes(x = boro_nm, y = average_response_time_minutes, fill = cip_jobs)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Average Response Time by Borough and CIP Jobs",
+       x = "Borough",
+       y = "Average Response Time (minutes)",
+       fill = "CIP Jobs") +
+  theme_minimal()
+
+# Print the bar plot
+print(bar_plot)
+```
+
+### Trying to see if there is any correlation between the response time and the number of incidents reported and the type of service that was requested.
+
+```{r}
+# Calculate the number of incidents and average response time for each borough
+borough_summary <- nypd_data %>%
+  filter(!is.na(boro_nm) & boro_nm != "(null)") %>%
+  group_by(boro_nm) %>%
+  summarize(num_incidents = n(),
+            average_response_time_minutes = mean(response_time_minutes, na.rm = TRUE))
+
+# Scatter plot for average response time and number of incidents
+ggplot(borough_summary, aes(x = num_incidents, y = average_response_time_minutes)) +
+  geom_point() +
+  labs(x = "Number of Incidents",
+       y = "Average Response Time (minutes)",
+       title = "Correlation between Number of Incidents and Average Response Time by Borough")
+```
+
+### Calculating the correlation coefficients
+
+```{r}
+# Calculate the number of incidents reported in each borough and the average response time for each borough
+incidents_by_borough <- nypd_data %>%
+  filter(!is.na(boro_nm) & boro_nm != "(null)") %>%
+  group_by(boro_nm) %>%
+  summarize(num_incidents = n(),
+            average_response_time_minutes = mean(response_time_minutes, na.rm = TRUE))
+
+# Print the incidents_by_borough dataframe
+#print(incidents_by_borough)
+
+
+# Calculate the correlation between the number of incidents and the average response time
+correlation_num_incidents_response_time <- cor.test(incidents_by_borough$num_incidents, incidents_by_borough$average_response_time_minutes)
+
+# Print the correlation coefficient
+print("the correlation between the number of incidents and the average response time:\n")
+print(correlation_num_incidents_response_time)
+```
+
+```{r}
+
+# Calculate the correlation between the type of incident (typ_desc) and the average response time
+correlation_typ_desc_response_time <- cor.test(nypd_data$response_time_minutes, as.numeric(as.factor(nypd_data$typ_desc)))
+
+# Print the correlation coefficient
+
+print("the correlation between the type of incident (typ_desc) and the average response time")
+print(correlation_typ_desc_response_time)
+```
+
+**Correlation between the number of incidents and the average response time:**
+
+* The Pearson's correlation coefficient (cor) between the number of incidents and the average response time is approximately -0.33.
+* Since the correlation coefficient is negative, it indicates a weak negative correlation between the number of incidents reported in each borough and the average response time. However, the correlation is relatively weak (closer to 0), suggesting that there may not be a strong linear relationship between these variables.
+* The p-value associated with the correlation coefficient is 0.592, which is greater than the significance level of 0.05. This suggests that we fail to reject the null hypothesis that there is no correlation between the number of incidents and the average response time.
+
+**Correlation between the type of incident (typ_desc) and the average response time:**
+
+* The Pearson's correlation coefficient between the type of incident and the average response time is approximately -0.21.
+* Here also, the correlation coefficient is negative, indicating a weak negative correlation between the type of incident and the average response time. 
+* The p-value associated with the correlation coefficient is extremely small (p-value < 2.2e-16), indicating strong evidence against the null hypothesis that there is no correlation between the type of incident and the average response time.
+
+<br>Overall, these results suggest that while there may be some weak correlations present, they are not strong enough to draw definitive conclusions about the relationships between the variables. Further analysis or consideration of additional factors may be necessary to better understand the factors influencing response times in the dataset.
+
+
+### We also attempted to create an interactive map, but had a hard time deciphering the geoJSON file containing boundary information of the boroughs. This can be an excellent end user tool if implemented correctly. Below is the code snippet we tried to run.
+
+```{r}
+
+#library(geojsonio)
+#library(leaflet)
+
+
+## redoing the aggregation
+# average_response_time_by_group <- nypd_data %>%
+#   filter(!is.na(boro_nm) & boro_nm != "(null)") %>%
+#   group_by(boro_nm, cip_jobs) %>%
+#   summarize(average_response_time_minutes = mean(response_time_minutes, na.rm = TRUE)) 
+
+
+# Read the geojson file
+#geo_data <- geojson_read("C:/Users/Owner/OneDrive - The City University of New York/BaruchMS/SoftwareTools/Borough Boundaries.geojson")
+#geo_data <- geojson_read("C:/Users/Owner/Downloads/nyc-boroughs_1198.geojson")
+
+# # Check uniqueness of 'boro_nm' column in geo_data
+# unique_geo_data <- unique(geo_data$boro_nm)
+# print(length(unique_geo_data))
+# 
+# # Check uniqueness of 'boro_nm' column in average_response_time_by_group
+# unique_avg_response_time <- unique(average_response_time_by_group$boro_nm)
+# print(length(unique_avg_response_time))
+# 
+# 
+# 
+# # Rename the column BoroName to match with the aggregated data
+# names(geo_data)[names(geo_data) == "BoroName"] <- "boro_nm"
+
+
+
+# Create interactive map
+# map <- leaflet(merged_data) %>%
+#   addProviderTiles("CartoDB.Positron") %>%
+#   addPolygons(
+#     fillColor = ~colorQuantile("YlOrRd", average_response_time_minutes)(average_response_time_minutes),
+#     fillOpacity = 0.8,
+#     color = "white",
+#     weight = 1,
+#     highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE),
+#     label = ~paste(boro_nm, "<br>", "Avg Response Time:", round(average_response_time_minutes, 2), "minutes"),
+#     labelOptions = labelOptions(
+#       style = list("font-weight" = "normal", padding = "3px 8px"),
+#       textsize = "15px",
+#       direction = "auto"
+#     )
+#   ) %>%
+#   addLegend(
+#     position = "bottomright",
+#     pal = colorQuantile("YlOrRd", average_response_time_minutes),
+#     values = ~average_response_time_minutes,
+#     title = "Average Response Time (minutes)",
+#     labFormat = labelFormat(suffix = "min")
+#   )
+# 
+# # Print the interactive map
+# print(map)
+
+```
+
+
+## Conclusion
+We were not able to find any apparent correlation between the response time and the number of incidents in each borough. We would need to apply some more advanced data analysis methods from our data to derive more insights in the future. We can also acquire more data--since our dataset only had data from 2023. In the future, if we can resolve the storage and processing limitations, we combine data from multiple years to analyze.
+
+
+
+## Apendix
+Github link to Python code: https://github.com/desert-swarm/STA9750_finalProject
+Box link data used: https://app.box.com/s/u99g5sn5skf8uu5zlbvobhcu3ws0m85q
