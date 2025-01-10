@@ -29,7 +29,8 @@ We used R Studio for data cleaning, visualization, and analysis, leveraging clus
 - Incidents predominantly occurred during daytime hours, especially in Brooklyn.
 - There is a partial correlation between incident reports and 911 calls, with Manhattan and Brooklyn showing consistency in both datasets.
 
-![image](https://github.com/user-attachments/assets/9d43bee6-18e4-4a8c-b089-ea01d1f368de)
+![image](https://github.com/user-attachments/assets/9d43bee6-18e4-4a8c-b089-ea01d1f368de) ![image](https://github.com/user-attachments/assets/e0f14471-cc49-46a4-811a-5a8d48afd2cd)
+
 
 
 
